@@ -642,26 +642,37 @@
                         console.log('Raw CSV data:', results.data);
                         console.log('Headers:', results.meta.fields);
                         
-                        // Filter out total rows and get actual campaigns
-                        const campaigns = results.data.filter(row => 
-                            row.Campaign && 
-                            row.Campaign.trim() !== '' &&
-                            !row.Campaign.includes('Total:') &&
-                            row.Campaign !== '--' &&
-                            row.Campaign !== 'Campaign' && // Remove header row
-                            row['Campaign status'] === 'Enabled'
-                        );
+                       // Filter to get actual campaigns - much more flexible approach
+                                const campaigns = results.data.filter(row => {
+                                    // Must have a campaign name
+                                    if (!row.Campaign || row.Campaign.trim() === '') return false;
+                                    
+                                    // Skip obvious total/summary rows
+                                    if (row.Campaign.startsWith('Total:')) return false;
+                                    
+                                    // Skip header repeats
+                                    if (row.Campaign === 'Campaign') return false;
+                                    
+                                    // Must have some cost data (even if campaign status is missing)
+                                    const hasCost = parseNumeric(row.Cost) > 0;
+                                    const hasClicks = parseNumeric(row.Clicks) > 0;
+                                    
+                                    // Accept if it has real campaign data
+                                    return hasCost || hasClicks;
+                                });
 
                         console.log('All data rows:', results.data);
                         console.log('Filtered campaigns:', campaigns);
 
-                        if (campaigns.length === 0) {
-                            console.log('Available campaigns in data:', results.data.map(row => ({
-                                Campaign: row.Campaign,
-                                Status: row['Campaign status']
-                            })));
-                            throw new Error(`No valid campaign data found in CSV. Found ${results.data.length} total rows.`);
-                        }
+                                                   if (campaigns.length === 0) {
+                                console.log('Available campaign data in CSV:', results.data.map(row => ({
+                                    Campaign: row.Campaign,
+                                    Cost: row.Cost,
+                                    Clicks: row.Clicks,
+                                    Status: row['Campaign status']
+                                })));
+                                throw new Error(`No campaign data found. The CSV appears to only contain summary rows. Please upload a campaign-level report.`);
+                            }
 
                         csvData = campaigns;
                         generateReport(campaigns);
