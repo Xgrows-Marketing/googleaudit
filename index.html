@@ -636,22 +636,31 @@
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
+                dynamicTyping: false, // Keep everything as strings initially
                 complete: function(results) {
                     try {
+                        console.log('Raw CSV data:', results.data);
+                        console.log('Headers:', results.meta.fields);
+                        
                         // Filter out total rows and get actual campaigns
                         const campaigns = results.data.filter(row => 
                             row.Campaign && 
                             row.Campaign.trim() !== '' &&
                             !row.Campaign.includes('Total:') &&
                             row.Campaign !== '--' &&
-                            (row['Campaign status'] === 'Enabled' || !row['Campaign status'])
+                            row.Campaign !== 'Campaign' && // Remove header row
+                            row['Campaign status'] === 'Enabled'
                         );
 
                         console.log('All data rows:', results.data);
                         console.log('Filtered campaigns:', campaigns);
 
                         if (campaigns.length === 0) {
-                            throw new Error('No valid campaign data found in CSV');
+                            console.log('Available campaigns in data:', results.data.map(row => ({
+                                Campaign: row.Campaign,
+                                Status: row['Campaign status']
+                            })));
+                            throw new Error(`No valid campaign data found in CSV. Found ${results.data.length} total rows.`);
                         }
 
                         csvData = campaigns;
