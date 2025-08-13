@@ -641,10 +641,14 @@
                         // Filter out total rows and get actual campaigns
                         const campaigns = results.data.filter(row => 
                             row.Campaign && 
+                            row.Campaign.trim() !== '' &&
                             !row.Campaign.includes('Total:') &&
                             row.Campaign !== '--' &&
-                            row['Campaign status'] === 'Enabled'
+                            (row['Campaign status'] === 'Enabled' || !row['Campaign status'])
                         );
+
+                        console.log('All data rows:', results.data);
+                        console.log('Filtered campaigns:', campaigns);
 
                         if (campaigns.length === 0) {
                             throw new Error('No valid campaign data found in CSV');
