@@ -578,8 +578,8 @@
         function parseNumeric(value) {
             if (typeof value === 'number') return value;
             if (typeof value === 'string') {
-                if (value === '' || value === '--' || value === '< 10%') return 0;
-                const cleaned = value.replace(/[,$%<>\s]/g, '');
+                if (value === '' || value === '--' || value === '< 10%' || value === 'unknown') return 0;
+                const cleaned = value.replace(/[,$%<>\s"]/g, '');
                 const num = parseFloat(cleaned);
                 return isNaN(num) ? 0 : num;
             }
@@ -594,7 +594,7 @@
         }
 
         function formatNumber(value) {
-            return new Intl.NumberFormat('en-US').format(value);
+            return new Intl.NumberFormat('en-US').format(Math.round(value));
         }
 
         function formatPercentage(value) {
@@ -791,6 +791,19 @@
                     title: 'High Conversion Rates',
                     description: `Your average conversion rate of ${metrics.avgConvRate.toFixed(2)}% indicates strong ad relevance and landing page experience.`
                 });
+            } else if (metrics.avgConvRate < 1) {
+                insights.push({
+                    title: 'Low Conversion Rates',
+                    description: `Your average conversion rate of ${metrics.avgConvRate.toFixed(2)}% is below industry benchmarks. Consider optimizing landing pages and ad relevance.`
+                });
+            }
+
+            // CTR insight
+            if (metrics.ctr > 5) {
+                insights.push({
+                    title: 'Strong Click-Through Rates',
+                    description: `Your CTR of ${metrics.ctr.toFixed(2)}% shows excellent ad relevance and compelling messaging.`
+                });
             }
 
             return insights;
@@ -820,3 +833,234 @@
                     description: `${lowROASCampaigns.length} campaigns have ROAS below 2:1. Review targeting, keywords, and landing pages for these campaigns to improve efficiency.`
                 });
             }
+
+            // High-performing campaigns to scale
+            const highROASCampaigns = campaigns.filter(c => c.roas > 4 && c.cost > 500);
+            if (highROASCampaigns.length > 0) {
+                recommendations.push({
+                    title: 'Scale High-Performing Campaigns',
+                    description: `${highROASCampaigns.length} campaigns show excellent ROAS above 4:1. Consider increasing budgets and expanding targeting for these winners.`
+                });
+            }
+
+            // Conversion rate recommendations
+            const lowConvRateCampaigns = campaigns.filter(c => c.convRate < 1 && c.clicks > 100);
+            if (lowConvRateCampaigns.length > 0) {
+                recommendations.push({
+                    title: 'Improve Landing Page Experience',
+                    description: `${lowConvRateCampaigns.length} campaigns have conversion rates below 1%. Focus on landing page optimization, load speed, and mobile experience.`
+                });
+            }
+
+            // Bidding strategy recommendations
+            const manualCPCCampaigns = campaigns.filter(c => 
+                c['Bid strategy type'] && c['Bid strategy type'].includes('Manual')
+            );
+            if (manualCPCCampaigns.length > 0) {
+                recommendations.push({
+                    title: 'Consider Smart Bidding',
+                    description: `${manualCPCCampaigns.length} campaigns use manual bidding. Consider testing Target ROAS or Maximize Conversions for better performance.`
+                });
+            }
+
+            return recommendations;
+        }
+
+        function displayReport() {
+            // Show report section and hide upload section
+            document.getElementById('uploadSection').style.display = 'none';
+            document.getElementById('reportSection').style.display = 'block';
+
+            // Set report date
+            document.getElementById('reportDate').textContent = `Generated on ${report.generatedDate}`;
+
+            // Display key metrics
+            displayMetrics();
+
+            // Display campaign overview
+            displayCampaigns();
+
+            // Display insights
+            displayInsights();
+
+            // Display recommendations
+            displayRecommendations();
+        }
+
+        function displayMetrics() {
+            const metricsGrid = document.getElementById('metricsGrid');
+            
+            const metrics = [
+                {
+                    label: 'Total Spend',
+                    value: formatCurrency(report.totalCost)
+                },
+                {
+                    label: 'Total Clicks',
+                    value: formatNumber(report.totalClicks)
+                },
+                {
+                    label: 'Conversions',
+                    value: formatNumber(report.totalConversions)
+                },
+                {
+                    label: 'Conv. Value',
+                    value: formatCurrency(report.totalConvValue)
+                },
+                {
+                    label: 'Avg. CPC',
+                    value: formatCurrency(report.avgCPC)
+                },
+                {
+                    label: 'Conv. Rate',
+                    value: report.avgConvRate.toFixed(2) + '%'
+                },
+                {
+                    label: 'ROAS',
+                    value: report.roas.toFixed(2) + ':1'
+                },
+                {
+                    label: 'CTR',
+                    value: report.ctr.toFixed(2) + '%'
+                }
+            ];
+
+            metricsGrid.innerHTML = metrics.map(metric => `
+                <div class="metric-card">
+                    <div class="metric-value">${metric.value}</div>
+                    <div class="metric-label">${metric.label}</div>
+                </div>
+            `).join('');
+        }
+
+        function displayCampaigns() {
+            const campaignGrid = document.getElementById('campaignGrid');
+            
+            campaignGrid.innerHTML = report.campaignAnalysis.map(campaign => {
+                const statusClass = campaign['Status reasons'] && campaign['Status reasons'].includes('limited by budget') 
+                    ? 'status-limited' : 'status-enabled';
+                const statusText = campaign['Status reasons'] && campaign['Status reasons'].includes('limited by budget') 
+                    ? 'Budget Limited' : 'Active';
+
+                return `
+                    <div class="campaign-card">
+                        <div class="campaign-name">${campaign.Campaign}</div>
+                        <div class="campaign-type">${campaign['Campaign type']}</div>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                        
+                        <div class="campaign-metrics">
+                            <div class="campaign-metric">
+                                <div class="campaign-metric-value">${formatCurrency(campaign.cost)}</div>
+                                <div class="campaign-metric-label">Spend</div>
+                            </div>
+                            <div class="campaign-metric">
+                                <div class="campaign-metric-value">${formatNumber(campaign.clicks)}</div>
+                                <div class="campaign-metric-label">Clicks</div>
+                            </div>
+                            <div class="campaign-metric">
+                                <div class="campaign-metric-value">${formatNumber(campaign.conversions)}</div>
+                                <div class="campaign-metric-label">Conversions</div>
+                            </div>
+                            <div class="campaign-metric">
+                                <div class="campaign-metric-value">${campaign.roas.toFixed(2)}:1</div>
+                                <div class="campaign-metric-label">ROAS</div>
+                            </div>
+                            <div class="campaign-metric">
+                                <div class="campaign-metric-value">${campaign.convRate.toFixed(2)}%</div>
+                                <div class="campaign-metric-label">Conv. Rate</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function displayInsights() {
+            const insightsGrid = document.getElementById('insightsGrid');
+            
+            insightsGrid.innerHTML = report.insights.map(insight => `
+                <div class="insight-card">
+                    <div class="insight-title">${insight.title}</div>
+                    <div class="insight-description">${insight.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function displayRecommendations() {
+            const recommendationsContainer = document.getElementById('recommendationsContainer');
+            
+            recommendationsContainer.innerHTML = report.recommendations.map(recommendation => `
+                <div class="recommendation-card">
+                    <div class="recommendation-title">${recommendation.title}</div>
+                    <div class="recommendation-description">${recommendation.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function downloadPDF() {
+            // Create a simple text report for download
+            const reportContent = generateTextReport();
+            const blob = new Blob([reportContent], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `google-ads-audit-${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        function generateTextReport() {
+            return `
+GOOGLE ADS ACCOUNT AUDIT REPORT
+Generated on ${report.generatedDate}
+
+=== KEY METRICS ===
+Total Spend: ${formatCurrency(report.totalCost)}
+Total Clicks: ${formatNumber(report.totalClicks)}
+Total Conversions: ${formatNumber(report.totalConversions)}
+Conversion Value: ${formatCurrency(report.totalConvValue)}
+Average CPC: ${formatCurrency(report.avgCPC)}
+Conversion Rate: ${report.avgConvRate.toFixed(2)}%
+ROAS: ${report.roas.toFixed(2)}:1
+CTR: ${report.ctr.toFixed(2)}%
+
+=== CAMPAIGN OVERVIEW ===
+${report.campaignAnalysis.map(campaign => `
+Campaign: ${campaign.Campaign}
+Type: ${campaign['Campaign type']}
+Spend: ${formatCurrency(campaign.cost)}
+Clicks: ${formatNumber(campaign.clicks)}
+Conversions: ${formatNumber(campaign.conversions)}
+ROAS: ${campaign.roas.toFixed(2)}:1
+Conv. Rate: ${campaign.convRate.toFixed(2)}%
+`).join('\n')}
+
+=== KEY INSIGHTS ===
+${report.insights.map(insight => `
+${insight.title}
+${insight.description}
+`).join('\n')}
+
+=== RECOMMENDATIONS ===
+${report.recommendations.map(rec => `
+${rec.title}
+${rec.description}
+`).join('\n')}
+            `.trim();
+        }
+
+        function newReport() {
+            document.getElementById('uploadSection').style.display = 'block';
+            document.getElementById('reportSection').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            hideError();
+            hideLoading();
+            csvData = null;
+            report = null;
+        }
+    </script>
+</body>
+</html>
