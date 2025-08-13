@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Ads Account Audit Report Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #111827;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .header-icon {
+            width: 32px;
+            height: 32px;
+            margin-right: 12px;
+            fill: #4338ca;
+        }
+        
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .upload-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 3rem;
+            text-align: center;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1.5rem;
+            fill: #4338ca;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .upload-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .upload-description {
+            color: #6b7280;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .upload-button {
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(67, 56, 202, 0.3);
+            font-size: 1.1rem;
+        }
+        
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(67, 56, 202, 0.4);
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .error-message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            color: #dc2626;
+            font-weight: 500;
+        }
+        
+        .loading-message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(79, 70, 229, 0.1);
+            border: 1px solid rgba(79, 70, 229, 0.2);
+            border-radius: 12px;
+            color: #4338ca;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #4338ca;
+            border-top: 3px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .report-section {
+            display: none;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        
+        .report-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .report-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .report-date {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .report-actions {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(5, 150, 105, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(107, 114, 128, 0.1);
+            color: #374151;
+            border: 1px solid rgba(107, 114, 128, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(107, 114, 128, 0.2);
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #4338ca, #7c3aed);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #1f2937, #374151);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .metric-label {
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.875rem;
+        }
+        
+        .section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            fill: #4338ca;
+        }
+        
+        .campaign-grid {
+            display: grid;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .campaign-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 4px solid #4338ca;
+        }
+        
+        .campaign-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #1f2937;
+        }
+        
+        .campaign-type {
+            background: rgba(67, 56, 202, 0.1);
+            color: #4338ca;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        .campaign-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+        }
+        
+        .campaign-metric {
+            text-align: center;
+        }
+        
+        .campaign-metric-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .campaign-metric-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .insight-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .insight-title {
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 0.5rem;
+        }
+        
+        .insight-description {
+            color: #374151;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .recommendation-card {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 4px solid #10b981;
+            margin-bottom: 1rem;
+        }
+        
+        .recommendation-title {
+            font-weight: 600;
+            color: #065f46;
+            margin-bottom: 0.5rem;
+        }
+        
+        .recommendation-description {
+            color: #374151;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        
+        .status-enabled {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-limited {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            background: white;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        
+        .data-table th {
+            background: #f8fafc;
+            padding: 1rem 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .data-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #f3f4f6;
+            color: #374151;
+        }
+        
+        .data-table tr:hover {
+            background: #f9fafb;
+        }
+        
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-success { color: #059669; font-weight: 600; }
+        .text-warning { color: #d97706; font-weight: 600; }
+        .text-danger { color: #dc2626; font-weight: 600; }
+        
+        .hidden { display: none; }
+        
+        @media (max-width: 768px) {
+            .report-header {
+                flex-direction: column;
+                gap: 1.5rem;
+                text-align: center;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .campaign-metrics {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <svg class="header-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 19c-5 0-8-3-8-8s3-8 8-8 8 3 8 8-3 8-8 8z" fill="currentColor"/>
+                <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1 class="header-title">Google Ads Account Audit Report</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Upload Section -->
+        <div id="uploadSection" class="upload-section">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="17,8 12,3 7,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h2 class="upload-title">Upload Campaign Report</h2>
+            <p class="upload-description">Generate comprehensive Google Ads account audit with actionable insights</p>
+            
+            <label for="fileInput" class="upload-button">
+                Choose Campaign Report CSV
+            </label>
+            <input type="file" id="fileInput" class="file-input" accept=".csv">
+            
+            <div id="errorMessage" class="error-message hidden"></div>
+            <div id="loadingMessage" class="loading-message hidden">
+                <div class="spinner"></div>
+                Analyzing your account performance...
+            </div>
+        </div>
+
+        <!-- Report Section -->
+        <div id="reportSection" class="report-section">
+            <!-- Report Header -->
+            <div class="report-header">
+                <div>
+                    <h2 class="report-title">Account Audit Report</h2>
+                    <p class="report-date" id="reportDate"></p>
+                </div>
+                <div class="report-actions">
+                    <button class="btn btn-primary" onclick="downloadPDF()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download Report
+                    </button>
+                    <button class="btn btn-secondary" onclick="newReport()">New Audit</button>
+                </div>
+            </div>
+
+            <!-- Key Metrics -->
+            <div id="metricsGrid" class="metrics-grid"></div>
+
+            <!-- Campaign Overview -->
+            <div class="section">
+                <h3 class="section-title">
+                    <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/>
+                    </svg>
+                    Campaign Performance Overview
+                </h3>
+                <div id="campaignGrid" class="campaign-grid"></div>
+            </div>
+
+            <!-- Key Insights -->
+            <div class="section">
+                <h3 class="section-title">
+                    <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="currentColor"/>
+                        <path d="m9 12 2 2 4-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Key Insights
+                </h3>
+                <div id="insightsGrid" class="insights-grid"></div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="section">
+                <h3 class="section-title">
+                    <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                    Recommendations
+                </h3>
+                <div id="recommendationsContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let csvData = null;
+        let report = null;
+
+        // Utility functions
+        function parseNumeric(value) {
+            if (typeof value === 'number') return value;
+            if (typeof value === 'string') {
+                if (value === '' || value === '--' || value === '< 10%') return 0;
+                const cleaned = value.replace(/[,$%<>\s]/g, '');
+                const num = parseFloat(cleaned);
+                return isNaN(num) ? 0 : num;
+            }
+            return 0;
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(value);
+        }
+
+        function formatNumber(value) {
+            return new Intl.NumberFormat('en-US').format(value);
+        }
+
+        function formatPercentage(value) {
+            return (value * 100).toFixed(2) + '%';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').classList.add('hidden');
+        }
+
+        function showLoading() {
+            document.getElementById('loadingMessage').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingMessage').classList.add('hidden');
+        }
+
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'text/csv') {
+                processCSV(file);
+            } else {
+                showError('Please upload a valid CSV file.');
+            }
+        });
+
+        function processCSV(file) {
+            showLoading();
+            hideError();
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        // Filter out total rows and get actual campaigns
+                        const campaigns = results.data.filter(row => 
+                            row.Campaign && 
+                            !row.Campaign.includes('Total:') &&
+                            row.Campaign !== '--' &&
+                            row['Campaign status'] === 'Enabled'
+                        );
+
+                        if (campaigns.length === 0) {
+                            throw new Error('No valid campaign data found in CSV');
+                        }
+
+                        csvData = campaigns;
+                        generateReport(campaigns);
+                    } catch (err) {
+                        showError('Error processing CSV file: ' + err.message);
+                        console.error('CSV processing error:', err);
+                    }
+                    hideLoading();
+                },
+                error: function(error) {
+                    showError('Failed to parse CSV file: ' + error.message);
+                    hideLoading();
+                }
+            });
+        }
+
+        function generateReport(campaigns) {
+            console.log('Processing campaigns:', campaigns);
+
+            // Calculate aggregate metrics
+            const totalCost = _.sumBy(campaigns, row => parseNumeric(row.Cost));
+            const totalClicks = _.sumBy(campaigns, row => parseNumeric(row.Clicks));
+            const totalConversions = _.sumBy(campaigns, row => parseNumeric(row.Conversions));
+            const totalConvValue = _.sumBy(campaigns, row => parseNumeric(row['Conv. value']));
+            const totalImpressions = _.sumBy(campaigns, row => parseNumeric(row['Impr.']));
+
+            const avgCPC = totalCost / totalClicks || 0;
+            const avgConvRate = (totalConversions / totalClicks) * 100 || 0;
+            const roas = totalConvValue / totalCost || 0;
+            const ctr = (totalClicks / totalImpressions) * 100 || 0;
+
+            // Analyze campaign performance
+            const campaignAnalysis = campaigns.map(campaign => {
+                const cost = parseNumeric(campaign.Cost);
+                const clicks = parseNumeric(campaign.Clicks);
+                const conversions = parseNumeric(campaign.Conversions);
+                const convValue = parseNumeric(campaign['Conv. value']);
+                const impressions = parseNumeric(campaign['Impr.']);
+                
+                return {
+                    ...campaign,
+                    cost,
+                    clicks,
+                    conversions,
+                    convValue,
+                    impressions,
+                    cpc: cost / clicks || 0,
+                    convRate: (conversions / clicks) * 100 || 0,
+                    roas: convValue / cost || 0,
+                    ctr: (clicks / impressions) * 100 || 0
+                };
+            });
+
+            // Generate insights
+            const insights = generateInsights(campaignAnalysis, {
+                totalCost,
+                totalClicks,
+                totalConversions,
+                totalConvValue,
+                avgCPC,
+                avgConvRate,
+                roas,
+                ctr
+            });
+
+            // Generate recommendations
+            const recommendations = generateRecommendations(campaignAnalysis, {
+                totalCost,
+                avgCPC,
+                avgConvRate,
+                roas
+            });
+
+            report = {
+                totalCost,
+                totalClicks,
+                totalConversions,
+                totalConvValue,
+                avgCPC,
+                avgConvRate,
+                roas,
+                ctr,
+                campaignCount: campaigns.length,
+                campaignAnalysis,
+                insights,
+                recommendations,
+                generatedDate: new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                })
+            };
+
+            console.log('Generated report:', report);
+            displayReport();
+        }
+
+        function generateInsights(campaigns, metrics) {
+            const insights = [];
+
+            // Budget utilization insight
+            const limitedCampaigns = campaigns.filter(c => 
+                c['Status reasons'] && c['Status reasons'].includes('limited by budget')
+            );
+            
+            if (limitedCampaigns.length > 0) {
+                insights.push({
+                    title: 'Budget Constraints',
+                    description: `${limitedCampaigns.length} campaign(s) are limited by budget, potentially missing valuable traffic and conversions.`
+                });
+            }
+
+            // Performance insight
+            if (metrics.roas > 4) {
+                insights.push({
+                    title: 'Strong ROAS Performance',
+                    description: `Your account shows excellent return on ad spend at ${metrics.roas.toFixed(2)}:1, indicating effective targeting and bidding strategies.`
+                });
+            } else if (metrics.roas < 2) {
+                insights.push({
+                    title: 'ROAS Optimization Needed',
+                    description: `Current ROAS of ${metrics.roas.toFixed(2)}:1 suggests room for improvement in targeting, bidding, or landing page optimization.`
+                });
+            }
+
+            // Campaign type distribution
+            const campaignTypes = _.countBy(campaigns, 'Campaign type');
+            const hasPerformanceMax = campaigns.some(c => c['Campaign type'] === 'Performance Max');
+            
+            if (hasPerformanceMax) {
+                insights.push({
+                    title: 'Performance Max Adoption',
+                    description: 'You\'re leveraging Performance Max campaigns, which can help reach customers across all Google properties with automated bidding.'
+                });
+            }
+
+            // Conversion rate insight
+            if (metrics.avgConvRate > 5) {
+                insights.push({
+                    title: 'High Conversion Rates',
+                    description: `Your average conversion rate of ${metrics.avgConvRate.toFixed(2)}% indicates strong ad relevance and landing page experience.`
+                });
+            }
+
+            return insights;
+        }
+
+        function generateRecommendations(campaigns, metrics) {
+            const recommendations = [];
+
+            // Budget recommendations
+            const limitedCampaigns = campaigns.filter(c => 
+                c['Status reasons'] && c['Status reasons'].includes('limited by budget')
+            );
+            
+            if (limitedCampaigns.length > 0) {
+                const totalLimitedSpend = _.sumBy(limitedCampaigns, 'cost');
+                recommendations.push({
+                    title: 'Increase Budget for High-Performing Campaigns',
+                    description: `Consider increasing budgets for ${limitedCampaigns.length} budget-limited campaigns. Current spend: ${formatCurrency(totalLimitedSpend)}. These campaigns show demand that exceeds current budget allocation.`
+                });
+            }
+
+            // ROAS-based recommendations
+            const lowROASCampaigns = campaigns.filter(c => c.roas < 2 && c.cost > 100);
+            if (lowROASCampaigns.length > 0) {
+                recommendations.push({
+                    title: 'Optimize Low-ROAS Campaigns',
+                    description: `${lowROASCampaigns.length} campaigns have ROAS below 2:1. Review targeting, keywords, and landing pages for these campaigns to improve efficiency.`
+                });
+            }
