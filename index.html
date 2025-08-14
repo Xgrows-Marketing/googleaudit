@@ -496,7 +496,10 @@
                 <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <h2 class="upload-title">Upload Campaign Report</h2>
-            <p class="upload-description">Generate comprehensive Google Ads account audit with actionable insights</p>
+            <p class="upload-description">Generate comprehensive Google Ads account audit with actionable insights<br>
+            <small style="color: #9ca3af; font-size: 0.9rem; margin-top: 0.5rem; display: block;">
+                Works with any Google Ads campaign performance report CSV
+            </small></p>
             
             <label for="fileInput" class="upload-button">
                 Choose Campaign Report CSV
@@ -619,6 +622,57 @@
             document.getElementById('loadingMessage').classList.add('hidden');
         }
 
+        // Helper functions to find field names dynamically
+        function getCampaignName(row) {
+            return row['Campaign'] || row['Campaign name'] || row['campaign'] || 
+                   Object.values(row).find(val => val && typeof val === 'string' && val.trim() !== '');
+        }
+
+        function getCostField(row) {
+            return row['Cost'] || row['cost'] || row['Spend'] || row['spend'] || 
+                   row['Amount'] || row['amount'] || '0';
+        }
+
+        function getClicksField(row) {
+            return row['Clicks'] || row['clicks'] || row['Click'] || row['click'] || '0';
+        }
+
+        function getImpressionsField(row) {
+            return row['Impr.'] || row['Impressions'] || row['impressions'] || 
+                   row['Impr'] || row['impr'] || '0';
+        }
+
+        function getConversionsField(row) {
+            return row['Conversions'] || row['conversions'] || row['Conv.'] || 
+                   row['conv'] || row['Actions'] || row['actions'] || '0';
+        }
+
+        function getConversionValueField(row) {
+            return row['Conv. value'] || row['Conversion value'] || row['conversion value'] ||
+                   row['Conv value'] || row['Revenue'] || row['revenue'] || '0';
+        }
+
+        function getCampaignTypeField(row) {
+            return row['Campaign type'] || row['Campaign Type'] || row['Type'] || 
+                   row['type'] || row['Campaign state'] || 'Unknown';
+        }
+
+        function getCTRField(row) {
+            return row['CTR'] || row['ctr'] || row['Click-through rate'] || '0';
+        }
+
+        function getCPCField(row) {
+            return row['Avg. CPC'] || row['CPC'] || row['cpc'] || row['Cost per click'] || '0';
+        }
+
+        function getBidStrategyField(row) {
+            return row['Bid strategy type'] || row['Bid strategy'] || row['bidding'] || 'Unknown';
+        }
+
+        function getStatusReasonsField(row) {
+            return row['Status reasons'] || row['Status'] || row['Campaign status'] || '';
+        }
+
         // File upload handling
         document.getElementById('fileInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -636,76 +690,77 @@
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                dynamicTyping: false, // Keep everything as strings initially
+                dynamicTyping: false,
                 complete: function(results) {
                     try {
                         console.log('Raw CSV data:', results.data);
                         console.log('Headers:', results.meta.fields);
                         
-// First try to get individual campaigns
-let campaigns = results.data.filter(row => {
-    // Must have a campaign name
-    if (!row.Campaign || row.Campaign.trim() === '') return false;
-    
-    // Skip obvious total/summary rows
-    if (row.Campaign.startsWith('Total:')) return false;
-    
-    // Skip header repeats
-    if (row.Campaign === 'Campaign') return false;
-    
-    // Must have some cost data (even if campaign status is missing)
-    const hasCost = parseNumeric(row.Cost) > 0;
-    const hasClicks = parseNumeric(row.Clicks) > 0;
-    
-                                // Accept if it has real campaign data
-                                return hasCost || hasClicks;
+                        // Clean and normalize the data with dynamic field detection
+                        let campaigns = results.data.filter(row => {
+                            const campaignName = getCampaignName(row);
+                            if (!campaignName || campaignName.trim() === '') return false;
+                            
+                            // Skip obvious total/summary rows
+                            if (campaignName.toLowerCase().includes('total') && 
+                                campaignName.toLowerCase().includes(':')) return false;
+                            
+                            // Skip header repeats
+                            if (campaignName === 'Campaign') return false;
+                            
+                            // Must have some meaningful data
+                            const hasCost = parseNumeric(getCostField(row)) > 0;
+                            const hasClicks = parseNumeric(getClicksField(row)) > 0;
+                            const hasImpressions = parseNumeric(getImpressionsField(row)) > 0;
+                            
+                            return hasCost || hasClicks || hasImpressions;
+                        });
+                        
+                        console.log('Individual campaigns found:', campaigns);
+                        
+                        // If no individual campaigns, look for summary/total rows
+                        if (campaigns.length === 0) {
+                            console.log('No individual campaigns found, looking for summary data...');
+                            
+                            campaigns = results.data.filter(row => {
+                                const campaignName = getCampaignName(row);
+                                if (!campaignName || campaignName.trim() === '') return false;
+                                
+                                if (campaignName.toLowerCase().includes('total')) {
+                                    const hasCost = parseNumeric(getCostField(row)) > 0;
+                                    const hasClicks = parseNumeric(getClicksField(row)) > 0;
+                                    
+                                    // Skip generic totals, focus on campaign type totals
+                                    if (campaignName === 'Total: Account' || campaignName === 'Total: Campaigns') {
+                                        return false;
+                                    }
+                                    
+                                    return hasCost || hasClicks;
+                                }
+                                return false;
+                            });
+                        }
+                        
+                        // Last resort - use account total
+                        if (campaigns.length === 0) {
+                            const accountTotal = results.data.find(row => {
+                                const campaignName = getCampaignName(row);
+                                return campaignName === 'Total: Account' || 
+                                       campaignName === 'Total: Campaigns' ||
+                                       campaignName === 'Total';
                             });
                             
-                            console.log('All data rows:', results.data);
-                            console.log('Individual campaigns found:', campaigns);
-                            
-                            // If no individual campaigns, use summary/total rows
-                            if (campaigns.length === 0) {
-                                console.log('No individual campaigns found, looking for summary data...');
-                                
-                                campaigns = results.data.filter(row => {
-                                    if (!row.Campaign || row.Campaign.trim() === '') return false;
-                                    
-                                    // Look for meaningful total rows with actual data
-                                    if (row.Campaign.startsWith('Total:')) {
-                                        const hasCost = parseNumeric(row.Cost) > 0;
-                                        const hasClicks = parseNumeric(row.Clicks) > 0;
-                                        
-                                        // Skip generic totals, focus on campaign type totals
-                                        if (row.Campaign === 'Total: Account' || row.Campaign === 'Total: Campaigns') {
-                                            return false;
-                                        }
-                                        
-                                        return hasCost || hasClicks;
-                                    }
-                                    return false;
-                                });
-                                
-                                console.log('Summary campaigns found:', campaigns);
+                            if (accountTotal && parseNumeric(getCostField(accountTotal)) > 0) {
+                                campaigns = [{
+                                    ...accountTotal,
+                                    Campaign: 'Account Overview',
+                                    'Campaign type': 'Summary'
+                                }];
+                                console.log('Using account total as fallback:', campaigns);
+                            } else {
+                                throw new Error('No usable campaign data found in the CSV file. Please ensure the file contains campaign performance data with cost or click information.');
                             }
-                            
-                            if (campaigns.length === 0) {
-                                // Last resort - use the main account total
-                                const accountTotal = results.data.find(row => 
-                                    row.Campaign === 'Total: Account' || row.Campaign === 'Total: Campaigns'
-                                );
-                                
-                                if (accountTotal && parseNumeric(accountTotal.Cost) > 0) {
-                                    campaigns = [{
-                                        ...accountTotal,
-                                        Campaign: 'Account Overview',
-                                        'Campaign type': 'Summary'
-                                    }];
-                                    console.log('Using account total as fallback:', campaigns);
-                                } else {
-                                    throw new Error(`No usable data found in CSV. Please check the file format.`);
-                                }
-                            }
+                        }
 
                         csvData = campaigns;
                         generateReport(campaigns);
@@ -725,28 +780,36 @@ let campaigns = results.data.filter(row => {
         function generateReport(campaigns) {
             console.log('Processing campaigns:', campaigns);
 
-            // Calculate aggregate metrics
-            const totalCost = _.sumBy(campaigns, row => parseNumeric(row.Cost));
-            const totalClicks = _.sumBy(campaigns, row => parseNumeric(row.Clicks));
-            const totalConversions = _.sumBy(campaigns, row => parseNumeric(row.Conversions));
-            const totalConvValue = _.sumBy(campaigns, row => parseNumeric(row['Conv. value']));
-            const totalImpressions = _.sumBy(campaigns, row => parseNumeric(row['Impr.']));
+            // Calculate aggregate metrics using dynamic field detection
+            const totalCost = _.sumBy(campaigns, row => parseNumeric(getCostField(row)));
+            const totalClicks = _.sumBy(campaigns, row => parseNumeric(getClicksField(row)));
+            const totalConversions = _.sumBy(campaigns, row => parseNumeric(getConversionsField(row)));
+            const totalConvValue = _.sumBy(campaigns, row => parseNumeric(getConversionValueField(row)));
+            const totalImpressions = _.sumBy(campaigns, row => parseNumeric(getImpressionsField(row)));
 
             const avgCPC = totalCost / totalClicks || 0;
             const avgConvRate = (totalConversions / totalClicks) * 100 || 0;
             const roas = totalConvValue / totalCost || 0;
             const ctr = (totalClicks / totalImpressions) * 100 || 0;
 
-            // Analyze campaign performance
+            // Analyze campaign performance with dynamic field detection
             const campaignAnalysis = campaigns.map(campaign => {
-                const cost = parseNumeric(campaign.Cost);
-                const clicks = parseNumeric(campaign.Clicks);
-                const conversions = parseNumeric(campaign.Conversions);
-                const convValue = parseNumeric(campaign['Conv. value']);
-                const impressions = parseNumeric(campaign['Impr.']);
+                const cost = parseNumeric(getCostField(campaign));
+                const clicks = parseNumeric(getClicksField(campaign));
+                const conversions = parseNumeric(getConversionsField(campaign));
+                const convValue = parseNumeric(getConversionValueField(campaign));
+                const impressions = parseNumeric(getImpressionsField(campaign));
+                const campaignName = getCampaignName(campaign);
+                const campaignType = getCampaignTypeField(campaign);
+                const bidStrategy = getBidStrategyField(campaign);
+                const statusReasons = getStatusReasonsField(campaign);
                 
                 return {
                     ...campaign,
+                    Campaign: campaignName,
+                    'Campaign type': campaignType,
+                    'Bid strategy type': bidStrategy,
+                    'Status reasons': statusReasons,
                     cost,
                     clicks,
                     conversions,
@@ -808,7 +871,7 @@ let campaigns = results.data.filter(row => {
 
             // Budget utilization insight
             const limitedCampaigns = campaigns.filter(c => 
-                c['Status reasons'] && c['Status reasons'].includes('limited by budget')
+                c['Status reasons'] && c['Status reasons'].toLowerCase().includes('budget')
             );
             
             if (limitedCampaigns.length > 0) {
@@ -824,7 +887,7 @@ let campaigns = results.data.filter(row => {
                     title: 'Strong ROAS Performance',
                     description: `Your account shows excellent return on ad spend at ${metrics.roas.toFixed(2)}:1, indicating effective targeting and bidding strategies.`
                 });
-            } else if (metrics.roas < 2) {
+            } else if (metrics.roas < 2 && metrics.roas > 0) {
                 insights.push({
                     title: 'ROAS Optimization Needed',
                     description: `Current ROAS of ${metrics.roas.toFixed(2)}:1 suggests room for improvement in targeting, bidding, or landing page optimization.`
@@ -833,7 +896,9 @@ let campaigns = results.data.filter(row => {
 
             // Campaign type distribution
             const campaignTypes = _.countBy(campaigns, 'Campaign type');
-            const hasPerformanceMax = campaigns.some(c => c['Campaign type'] === 'Performance Max');
+            const hasPerformanceMax = campaigns.some(c => 
+                c['Campaign type'] && c['Campaign type'].toLowerCase().includes('performance max')
+            );
             
             if (hasPerformanceMax) {
                 insights.push({
@@ -848,7 +913,7 @@ let campaigns = results.data.filter(row => {
                     title: 'High Conversion Rates',
                     description: `Your average conversion rate of ${metrics.avgConvRate.toFixed(2)}% indicates strong ad relevance and landing page experience.`
                 });
-            } else if (metrics.avgConvRate < 1) {
+            } else if (metrics.avgConvRate < 1 && metrics.avgConvRate > 0) {
                 insights.push({
                     title: 'Low Conversion Rates',
                     description: `Your average conversion rate of ${metrics.avgConvRate.toFixed(2)}% is below industry benchmarks. Consider optimizing landing pages and ad relevance.`
@@ -861,6 +926,27 @@ let campaigns = results.data.filter(row => {
                     title: 'Strong Click-Through Rates',
                     description: `Your CTR of ${metrics.ctr.toFixed(2)}% shows excellent ad relevance and compelling messaging.`
                 });
+            } else if (metrics.ctr < 2 && metrics.ctr > 0) {
+                insights.push({
+                    title: 'CTR Improvement Opportunity',
+                    description: `Your CTR of ${metrics.ctr.toFixed(2)}% could be improved through better ad copy, extensions, and keyword relevance.`
+                });
+            }
+
+            // Cost efficiency insight
+            if (metrics.avgCPC > 5) {
+                insights.push({
+                    title: 'High Cost Per Click',
+                    description: `Your average CPC of ${formatCurrency(metrics.avgCPC)} is relatively high. Consider reviewing keyword strategy and bid adjustments.`
+                });
+            }
+
+            // Add default insights if none found
+            if (insights.length === 0) {
+                insights.push({
+                    title: 'Account Overview',
+                    description: `Your account is spending ${formatCurrency(metrics.totalCost)} with ${formatNumber(metrics.totalClicks)} clicks generated.`
+                });
             }
 
             return insights;
@@ -871,7 +957,7 @@ let campaigns = results.data.filter(row => {
 
             // Budget recommendations
             const limitedCampaigns = campaigns.filter(c => 
-                c['Status reasons'] && c['Status reasons'].includes('limited by budget')
+                c['Status reasons'] && c['Status reasons'].toLowerCase().includes('budget')
             );
             
             if (limitedCampaigns.length > 0) {
@@ -883,7 +969,7 @@ let campaigns = results.data.filter(row => {
             }
 
             // ROAS-based recommendations
-            const lowROASCampaigns = campaigns.filter(c => c.roas < 2 && c.cost > 100);
+            const lowROASCampaigns = campaigns.filter(c => c.roas < 2 && c.roas > 0 && c.cost > 100);
             if (lowROASCampaigns.length > 0) {
                 recommendations.push({
                     title: 'Optimize Low-ROAS Campaigns',
@@ -901,7 +987,7 @@ let campaigns = results.data.filter(row => {
             }
 
             // Conversion rate recommendations
-            const lowConvRateCampaigns = campaigns.filter(c => c.convRate < 1 && c.clicks > 100);
+            const lowConvRateCampaigns = campaigns.filter(c => c.convRate < 1 && c.convRate > 0 && c.clicks > 100);
             if (lowConvRateCampaigns.length > 0) {
                 recommendations.push({
                     title: 'Improve Landing Page Experience',
@@ -911,13 +997,37 @@ let campaigns = results.data.filter(row => {
 
             // Bidding strategy recommendations
             const manualCPCCampaigns = campaigns.filter(c => 
-                c['Bid strategy type'] && c['Bid strategy type'].includes('Manual')
+                c['Bid strategy type'] && c['Bid strategy type'].toLowerCase().includes('manual')
             );
             if (manualCPCCampaigns.length > 0) {
                 recommendations.push({
                     title: 'Consider Smart Bidding',
                     description: `${manualCPCCampaigns.length} campaigns use manual bidding. Consider testing Target ROAS or Maximize Conversions for better performance.`
                 });
+            }
+
+            // CTR recommendations
+            const lowCTRCampaigns = campaigns.filter(c => c.ctr < 2 && c.ctr > 0 && c.impressions > 1000);
+            if (lowCTRCampaigns.length > 0) {
+                recommendations.push({
+                    title: 'Improve Ad Relevance',
+                    description: `${lowCTRCampaigns.length} campaigns have CTR below 2%. Consider refreshing ad copy, adding extensions, and improving keyword relevance.`
+                });
+            }
+
+            // Add default recommendations if none found
+            if (recommendations.length === 0) {
+                if (metrics.totalCost > 0) {
+                    recommendations.push({
+                        title: 'Regular Performance Monitoring',
+                        description: 'Continue monitoring your campaigns regularly. Consider implementing conversion tracking and testing different bidding strategies to optimize performance.'
+                    });
+                } else {
+                    recommendations.push({
+                        title: 'Account Setup Optimization',
+                        description: 'Ensure proper conversion tracking is set up and campaigns are actively running with sufficient budgets to gather performance data.'
+                    });
+                }
             }
 
             return recommendations;
@@ -994,9 +1104,9 @@ let campaigns = results.data.filter(row => {
             const campaignGrid = document.getElementById('campaignGrid');
             
             campaignGrid.innerHTML = report.campaignAnalysis.map(campaign => {
-                const statusClass = campaign['Status reasons'] && campaign['Status reasons'].includes('limited by budget') 
+                const statusClass = campaign['Status reasons'] && campaign['Status reasons'].toLowerCase().includes('budget') 
                     ? 'status-limited' : 'status-enabled';
-                const statusText = campaign['Status reasons'] && campaign['Status reasons'].includes('limited by budget') 
+                const statusText = campaign['Status reasons'] && campaign['Status reasons'].toLowerCase().includes('budget') 
                     ? 'Budget Limited' : 'Active';
 
                 return `
@@ -1019,11 +1129,11 @@ let campaigns = results.data.filter(row => {
                                 <div class="campaign-metric-label">Conversions</div>
                             </div>
                             <div class="campaign-metric">
-                                <div class="campaign-metric-value">${campaign.roas.toFixed(2)}:1</div>
+                                <div class="campaign-metric-value">${campaign.roas > 0 ? campaign.roas.toFixed(2) + ':1' : '--'}</div>
                                 <div class="campaign-metric-label">ROAS</div>
                             </div>
                             <div class="campaign-metric">
-                                <div class="campaign-metric-value">${campaign.convRate.toFixed(2)}%</div>
+                                <div class="campaign-metric-value">${campaign.convRate > 0 ? campaign.convRate.toFixed(2) + '%' : '--'}</div>
                                 <div class="campaign-metric-label">Conv. Rate</div>
                             </div>
                         </div>
@@ -1091,8 +1201,8 @@ Type: ${campaign['Campaign type']}
 Spend: ${formatCurrency(campaign.cost)}
 Clicks: ${formatNumber(campaign.clicks)}
 Conversions: ${formatNumber(campaign.conversions)}
-ROAS: ${campaign.roas.toFixed(2)}:1
-Conv. Rate: ${campaign.convRate.toFixed(2)}%
+ROAS: ${campaign.roas > 0 ? campaign.roas.toFixed(2) + ':1' : '--'}
+Conv. Rate: ${campaign.convRate > 0 ? campaign.convRate.toFixed(2) + '%' : '--'}
 `).join('\n')}
 
 === KEY INSIGHTS ===
